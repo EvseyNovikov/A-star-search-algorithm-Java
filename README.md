@@ -1,4 +1,5 @@
 # A-star-search-algorithm-Java
 Демонстрация работы программы
 
-https://user-images.githubusercontent.com/100697172/235380181-f3c2855a-50ff-4f9d-9a41-7c48ec2776af.mp4
+https://user-images.githubusercontent.com/100697172/235380219-88cd0497-1304-4bb9-ae93-cf82a9ad1384.mp4
+
