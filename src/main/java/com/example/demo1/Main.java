@@ -315,7 +315,6 @@ public class Main extends Application {
             BufferedImage image = new BufferedImage(ROWS_AMOUNT, ROWS_AMOUNT, BufferedImage.TYPE_INT_RGB);
 
             currentFilesBMP = selectedDirectory.getAbsolutePath();
-            System.out.println(currentFilesBMP);
 
             for (Spot[] row : grid) {
                 for (Spot spot : row) {
