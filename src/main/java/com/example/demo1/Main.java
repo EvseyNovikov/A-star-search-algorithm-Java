@@ -28,20 +28,46 @@ import java.io.IOException;
 import javafx.stage.FileChooser;
 import java.sql.*;
 
+/**
+ * Главный класс программы
+ */
 public class Main extends Application {
 
+    /** Стандартная ширина окна приложения */
     private static final int APP_WINDOW_WIDTH = 800;
+
+    /** Количество ячеек в сетке */
     private static final int ROWS_AMOUNT = 50;
     private static final int WIDTH = APP_WINDOW_WIDTH;
-    private Pane pane; // Тут отрисовывается карта
+
+    /** Элемент Pane, на котором отрисовывается сетка */
+    private Pane pane;
+
+    /** Основная сцена*/
     Scene scene;
+
+    /** Основная сцена-контейнер*/
     public Stage primaryStage;
+
+    /** Переменная нужна для хранения абсалютного пути к рабочим файлам (пользовательским картам) */
     public String currentFilesBMP;
 
+    /** Объект соеденения с базой данных */
     Connection conn;
+
+    /** Объект image класса  BufferedImage нужен для корректной работы методов ответственных за загрузку и сохранение карт из файлов */
     BufferedImage image = new BufferedImage(ROWS_AMOUNT, ROWS_AMOUNT, BufferedImage.TYPE_INT_RGB);
     private Rectangle[][] rects = new Rectangle[ROWS_AMOUNT][ROWS_AMOUNT];
 
+    /**
+     Возвращает ближайший к месту клика ячейку (Spot)
+
+     @param y Координата клика по оси y.
+
+     @param x Координата клика по оси x.
+
+     @return Массив целых чисел, содержащий номер строки и столбца, по которым можно найти ячейку (Spot) в сетке.
+     */
     public static int[] getClickedPos(double y, double x) {
         int spotSize = WIDTH / ROWS_AMOUNT;
 
@@ -51,26 +77,35 @@ public class Main extends Application {
         return new int[]{row, col};
     }
 
+    /**
+     Запускает приложение и инициализирует графический интерфейс.
+
+     @param stage Объект Stage для отображения графического интерфейса.
+
+     @throws Exception В случае возникновения исключительной ситуации при запуске приложения.
+     */
     @Override
     public void start(Stage stage) throws Exception {
         primaryStage = stage;
+
+        /** Количество строк в массиве точек графа*/
         int rows = ROWS_AMOUNT;
+        /** Количество строк в массиве точек графа*/
         int width = APP_WINDOW_WIDTH;
+        /** Размер отдельной точки графа*/
         int spotSize = width / rows;
 
-        // Создание базы данных для хранения пользовательских карт.
-        conn = DriverManager.getConnection("jdbc:h2:~/mapsBD");
 
-        // Создание таблицы для хранения пользовательских карт.
+        /** Создание базы данных для хранения пользовательских карт.*/
+        conn = new H2DatabaseConnection().getConnection();
 
         Statement stmt = conn.createStatement();
 
-        // Debug
-//        stmt.executeUpdate("DROP TABLE maps");
-
+        /** Создание таблицы для хранения пользовательских карт.*/
         stmt.execute("CREATE TABLE IF NOT EXISTS maps (id INT AUTO_INCREMENT PRIMARY KEY, image VARCHAR)");
 
-        // Создание меню и его элементов. Добавление обработчиков для этих элементов.
+        /** Создание меню и его элементов. Добавление обработчиков для этих элементов. */
+
         Menu fileMenuItem = new Menu("Файл");
 
         MenuItem loadMapMenuItem = new MenuItem("Загрузить карту из фото");
@@ -122,8 +157,7 @@ public class Main extends Application {
         pane = new Pane();
 
         var lines = new ArrayList<Line>();
-
-        // Отрисовка сетки
+        /** Отрисовка сетки */
         for (int i = 0; i < rows; i++) {
             Line line = new Line(0, i * spotSize, width, i * spotSize);
             line.setStroke(Color.GREY); // Горизонтальные линии
@@ -164,20 +198,49 @@ public class Main extends Application {
         stage.show();
     }
 
+    /**
+     * Точка входа в программу
+     * @param args
+     */
     public static void main(String[] args) {
         launch(args);
     }
 
+    /**
+     Класс, представляющий ячейку сетки.
+     */
     public class Spot {
+        /** Номер строки ячейки*/
         public int row;
+
+        /** Номер столбца ячейки*/
         public int col;
+
+        /** Координата x. Нужна для отслеживания нажатий мыши*/
         public int x;
+
+        /** Координата y. Нужна для отслеживания нажатий мыши*/
         public int y;
+
+        /** Переменная цвета. Используется для предания цвета ячейкам сетки*/
         public Color color = Color.WHITE;
+
+        /** Массив объектов Spot, который хранит соседние ячейки (рёбра) для текущей ячейки */
         public List<Spot> neighbors = new ArrayList<>();
+
+        /** Шырина одной ячейки */
         public int width;
+
+        /** Общее количество строк в сетке. */
         public int totalRows;
 
+        /**
+         Конструктор класса Spot.
+         @param row Номер строки ячейки.
+         @param col Номер столбца ячейки.
+         @param width Ширина ячейки.
+         @param totalRows Общее количество строк в сетке.
+         */
         public Spot(int row, int col, int width, int totalRows) {
             this.row = row;
             this.col = col;
@@ -187,42 +250,76 @@ public class Main extends Application {
             this.y = col * width;
         }
 
+        /**
+         Возвращает позицию ячейки.
+         @return Массив из двух целых чисел, содержащий номер строки и столбца ячейки.
+         */
         public int[] getPos() {
             return new int[] { row, col };
         }
 
+        /**
+         Проверяет, является ли ячейка препятствием.
+         @return true, если ячейка является препятствием, иначе false.
+         */
         public boolean isBarrier() {
             return color == Color.BLACK;
         }
 
+        /**
+         Сбрасывает цвет ячейки на белый. Нужно при очистке сетки
+         */
         public void reset() {
             color = Color.WHITE;
         }
 
+        /**
+         Устанавливает цвет ячейки как у начальной точки.
+         */
         public void makeStart() {
             color = Color.ORANGE;
         }
 
+        /**
+         Устанавливает цвет ячейки как закрытую. Если ячейка помечена как закрытая, значит алогритм A* уже перебрал её
+         */
         public void makeClosed() {
             color = Color.RED;
         }
 
+        /**
+         Устанавливает цвет ячейки как откытую. Если ячейка помечена как открытая, значит алогритм A* уже рассматривает
+         её как потециальное ребро маршрута
+         */
         public void makeOpen() {
             color = Color.GREEN;
         }
 
+        /**
+         Устанавливает цвет ячейки как препятствие.
+         */
         public void makeBarrier() {
             color = Color.BLACK;
         }
 
+        /**
+         Устанавливает цвет ячейки как конечную точку.
+         */
         public void makeEnd() {
             color = Color.TURQUOISE;
         }
-
+        /**
+         Устанавливает цвет ячейки как путь т.е как одно из рёбер кратчайшего пути.
+         */
         public void makePath() {
             color = Color.PURPLE;
         }
 
+        /**
+         Обновляет список соседних ячеек для текущей ячейки.
+
+         @param grid Двумерный массив ячеек, представляющий сетку.
+         */
         public void updateNeighbors(Spot[][] grid) {
             neighbors.clear();
 
@@ -244,6 +341,15 @@ public class Main extends Application {
         }
     }
 
+    /**
+     * Эвристическая функция сообщает алгоритму A* оценку минимальной стоимости пути от любой вершины n до цели.
+
+     @param p1 Координаты первой точки в виде массива [x, y].
+
+     @param p2 Координаты второй точки в виде массива [x, y].
+
+     @return Эвристическая оценка расстояния между двумя точками.
+     */
     public static int h(int[] p1, int[] p2) {
         int x1 = p1[0];
         int y1 = p1[1];
@@ -252,6 +358,11 @@ public class Main extends Application {
         return Math.abs(x1 - x2) + Math.abs(y1 - y2);
     }
 
+    /**
+     Восстанавливает путь по картам предшествования от конечной точки до начальной точки.
+     @param cameFrom Мапа, содержащая информацию о предшествующих ячейках для каждой ячейки.
+     @param current Текущая ячейка (конечная точка).
+     */
     public static void reconstructPath(Map<Spot, Spot> cameFrom, Spot current) {
         while (cameFrom.containsKey(current)) {
             current = cameFrom.get(current);
@@ -259,6 +370,12 @@ public class Main extends Application {
         }
     }
 
+    /**
+     * Метод checkLoad представляет диалоговое окно для выбора файла из файловой системы.
+     * Возвращает true, если файл был выбран, и false, если выбор файла был отменен.
+     *
+     * @return true, если файл был выбран; false, если выбор файла был отменен
+     */
     public boolean checkLoad(){
         final FileChooser fileChooser = new FileChooser();
         File selectedDirectory = fileChooser.showOpenDialog(primaryStage);
@@ -271,6 +388,14 @@ public class Main extends Application {
         }
     }
 
+    /**
+     * Метод загружает сохраненную сетку ячеек из изображения.
+     * Создает новую сетку ячеек типа Spot[][] и заполняет ее значениями на основе цветов пикселей в изображении.
+     * Черный цвет (java.awt.Color.BLACK) соответствует барьеру в ячейке, а любой другой цвет соответствует свободной ячейке.
+     * Загруженная сетка возвращается в качестве результата.
+
+     * @return Возращает реконструированную сетку
+     */
     public Spot[][] LoadSavedGrid(){
         clearMap();
 
@@ -300,6 +425,10 @@ public class Main extends Application {
         return gr;
     }
 
+    /**
+     * Метод сохраняет карту в формате BMP. Она открывает диалоговое окно для выбора места сохранения файла, а затем создает новое изображение типа BufferedImage и заполняет его цветами ячеек из текущей сетки.
+     * Черный цвет соответствует барьеру, а белый цвет - свободной ячейке. Затем изображение сохраняется в выбранном файле.
+     */
     public void saveMapBMP(){
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Сохранить карту как");
@@ -335,6 +464,10 @@ public class Main extends Application {
         }
     }
 
+    /**
+     *Метод сохраняет карту в базу данных. Она создает изображение типа BufferedImage и заполняет его цветами ячеек из текущей сетки.
+     * Затем изображение конвертируется в формат Base64 для хранения в БД. Наконец, картинка добавляется в таблицу "maps" в базе данных.
+     */
     public void saveMapToDb(){
         BufferedImage image = new BufferedImage(ROWS_AMOUNT, ROWS_AMOUNT, BufferedImage.TYPE_INT_RGB);
 
@@ -348,7 +481,7 @@ public class Main extends Application {
             }
         }
 
-        // Конвертация BMP изображения в Base64 формат для их хранения в БД
+        /** Конвертация BMP изображения в Base64 формат для их хранения в базу данных */
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         String base64Image = null;
         try {
@@ -359,7 +492,7 @@ public class Main extends Application {
             System.out.println(e.fillInStackTrace());
         }
 
-        // Добавление пользовательской карты в БД
+        /** Добавление пользовательской карты в базу данных */
         try{
             PreparedStatement pstmt = conn.prepareStatement("INSERT INTO maps (image) VALUES (?)");
             pstmt.setString(1, base64Image);
@@ -369,6 +502,10 @@ public class Main extends Application {
         }
     }
 
+    /**
+     * Метод очищает карту, сбрасывая начальную и конечную точки на `null` и восстанавливая сетку путем создания новой сетки с помощью функции `makeGrid`.
+     * Затем вызывается метод `repaintSpots()`, чтобы перерисовать ячейки на карту.
+     */
     public void clearMap(){
         start = null;
         end = null;
@@ -376,16 +513,28 @@ public class Main extends Application {
         repaintSpots();
     }
 
+    /**
+     *Метод отображает окно со списком доступных карт из базы данных. Он выполняет следующие шаги:
+     1. Создает окно (`Stage`) с заголовком "Список доступных карт".
+     2. Создает `ListView` для отображения карт и `ObservableList` для хранения элементов списка.
+     3. Выполняет SQL-запрос к базе данных, получает карты и добавляет их в `ObservableList` в виде `ImageView`.
+     4. Заполняет `ListView` элементами из `ObservableList`.
+     5. Устанавливает обработчик нажатия на элементы `ListView`, чтобы при выборе карты происходило ее загрузка и отображение на карте.
+     6. Создает сцену (`Scene`) для отображения списка карт с заданными размерами.
+     7. Устанавливает созданную сцену на окно (`Stage`) и отображает окно.
+
+     * @throws SQLException если возникает ошибка при выполнении SQL-запроса к базе данных.
+     */
     private void displayMapsWindow() throws SQLException {
 
         Stage imageWindow = new Stage();
         imageWindow.setTitle("Список доступных карт");
 
-        // Создание списка для отображения карт
+        /** Создание списка для отображения карт */
         ListView<ImageView> listView = new ListView<>();
         ObservableList<ImageView> imageList = FXCollections.observableArrayList();
 
-        // Получение карт из БД
+        /** Получение карт из БД */
         PreparedStatement stmt = conn.prepareStatement("SELECT * FROM maps");
         ResultSet rs = stmt.executeQuery();
 
@@ -398,13 +547,12 @@ public class Main extends Application {
             imageList.add(imageView);
         }
 
-        // Заполнение ListView
         listView.setItems(imageList);
 
 
-        // Обработчики нажатий по элементам ListView
+        /** Обработчики нажатий по элементам ListView */
         listView.setOnMouseClicked(event -> {
-            // Получение выбранной пользовательской карты
+            /** Получение выбранной пользовательской карты */
             ImageView selectedImage = listView.getSelectionModel().getSelectedItem();
             if (selectedImage != null) {
                 clearMap();
@@ -450,12 +598,21 @@ public class Main extends Application {
             }
         });
 
-        // Сцена для отображения списка карт
+        /** Сцена для отображения списка карт */
         Scene imageScene = new Scene(listView, 400, 400);
         imageWindow.setScene(imageScene);
         imageWindow.show();
     }
 
+    /**
+     *
+     Метод выполняет A* алгоритм для поиска пути от начальной точки до конечной точки на сетке карты.
+     Он использует приоритетную очередь (`PriorityQueue`) для хранения открытого множества вершин.
+     В цикле выполняется поиск пути, обновление значений g- и f-скоров, добавление соседних вершин в открытое множество и обновление цвета вершин.
+     Если достигнута конечная точка, происходит восстановление пути и установка соответствующего цвета вершины.
+     @param start начальная точка
+     @param end конечная точка
+     */
     public void algorithm(Spot start, Spot end) {
         Comparator<Pair<Integer, Spot>> pairComparator = Comparator.comparing(Pair::getKey);
 
@@ -520,6 +677,15 @@ public class Main extends Application {
     private List<EventType<MouseEvent>> mouseEventTypes = new ArrayList<>(
             Arrays.asList(MouseEvent.MOUSE_DRAGGED, MouseEvent.MOUSE_PRESSED, MouseEvent.MOUSE_CLICKED));
 
+    /**
+     *
+     Метод создает сетку карты, состоящую из объектов Spot, которые представляют точки на сетке. Он принимает общее количество строк в сетке (`totalRow`) и ширину сетки (`width`). Затем он создает двумерный массив `gr` размером `totalRow x totalRow` и заполняет его новыми объектами Spot, используя указанные параметры. Каждая точка имеет размер (`spotSize`) и общее количество строк (`totalRow`) для дальнейшего использования. В результате метод возвращает созданную сетку карты.
+     @param totalRow общее количество строк в сетке
+
+     @param width ширина сетки
+
+     @return двумерный массив объектов Spot, представляющих точки сетки
+     */
     public Spot[][] makeGrid(int totalRow, int width) {
         Spot[][] gr = new Spot[totalRow][totalRow];
         int spotSize = width / totalRow;
@@ -532,6 +698,10 @@ public class Main extends Application {
         return gr;
     }
 
+    /**
+     * Метод перерисовывает отображение всех точек на сетке карты.
+     * Он проходит по каждой строке и каждой точке в сетке и вызывает метод `changeSpotColour` для каждой точки, чтобы обновить ее цвет в соответствии с ее текущим состоянием.
+     */
     private void repaintSpots() {
         for (Spot[] row : grid) {
             for (Spot spot : row) {
@@ -544,6 +714,12 @@ public class Main extends Application {
         rects[spot.row][spot.col].setFill(spot.color);
     }
 
+    /**
+     * Метод обрабатывает события, связанные с мышью и клавиатурой.
+     * Он проверяет тип события и выполняет соответствующие действия. Если это событие мыши, то обрабатываются нажатия левой и правой кнопок мыши.
+     * При нажатии левой кнопки мыши устанавливается начальная точка (start), конечная точка (end) или создается барьерная точка (makeBarrier) в зависимости от текущего состояния.
+     * При нажатии правой кнопки мыши точка сбрасывается в исходное состояние (reset). Если это событие клавиатуры, то проверяется нажатие пробела (KeyCode.SPACE) для запуска алгоритма и нажатие клавиши "C" (KeyCode.C) для очистки карты.
+     */
     private void handleEvent(Event event) {
         var eventType = event.getEventType();
         if (mouseEventTypes.contains(eventType)) {
